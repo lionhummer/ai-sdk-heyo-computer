@@ -1,7 +1,7 @@
 // Prerequisites:
-//   1. A running heyvm API server:  heyvm --api --port 3000
+//   1. A Heyo API key:  export HEYO_API_KEY=heyo_...
 //   2. A model API key (e.g. AI Gateway / OpenAI) configured for the AI SDK.
-//   3. Build this package first:     npm run build
+//   3. Build this package first:  npm run build
 import { generateText, tool } from 'ai';
 import * as z from 'zod';
 // In your own project, import from the package name instead:
@@ -9,10 +9,9 @@ import * as z from 'zod';
 import { createHeyoSandbox } from '../src/index.js';
 
 async function main() {
-  // Assumes `heyvm --api --port 3000` is running locally.
   const sandbox = await createHeyoSandbox({
-    apiUrl: process.env.HEYO_API_URL ?? 'http://localhost:3000',
-    token: process.env.HEYO_TOKEN,
+    // apiKey defaults to process.env.HEYO_API_KEY.
+    // Point at a self-hosted heyvm with: baseUrl: 'http://localhost:3000'.
     image: 'ubuntu:24.04',
     ttlSeconds: 3600,
   });
@@ -22,8 +21,8 @@ async function main() {
       model: 'openai/gpt-5.5',
       experimental_sandbox: sandbox,
       tools: {
-        runCommand: tool({
-          description: 'Run a shell command inside the sandbox.',
+        bash: tool({
+          description: 'Run a bash command inside the sandbox.',
           inputSchema: z.object({
             command: z.string(),
             workingDirectory: z.string().optional(),

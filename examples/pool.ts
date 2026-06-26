@@ -1,9 +1,9 @@
 // Best-of-N: run the same task in N parallel sandboxes and keep the best result.
 //
 // Prerequisites:
-//   1. A running heyvm API server (`heyvm --api --port 3000`) or `transport: 'cli'`.
+//   1. A Heyo API key:  export HEYO_API_KEY=heyo_...
 //   2. A model API key configured for the AI SDK.
-//   3. Build this package first: npm run build
+//   3. Build this package first:  npm run build
 import { generateText, stepCountIs } from 'ai';
 // import { createHeyoSandboxPool, createHeyoTools } from 'ai-sdk-heyo-computer';
 import { createHeyoSandboxPool, createHeyoTools } from '../src/index.js';
@@ -11,13 +11,12 @@ import { createHeyoSandboxPool, createHeyoTools } from '../src/index.js';
 async function main() {
   await using pool = await createHeyoSandboxPool({
     size: 3,
-    apiUrl: process.env.HEYO_API_URL ?? 'http://localhost:3000',
     image: 'ubuntu:24.04',
     ttlSeconds: 1800,
   });
 
   const task =
-    'Write /tmp/solution.py solving FizzBuzz up to 30, run it, and print the output.';
+    'Write /workspace/solution.py solving FizzBuzz up to 30, run it, and print the output.';
 
   const { result, index } = await pool.best(
     async (sandbox) => {
@@ -28,7 +27,7 @@ async function main() {
         prompt: task,
       });
       // Verify the candidate actually produced a runnable file.
-      const check = await sandbox.exec({ command: 'python3 /tmp/solution.py' });
+      const check = await sandbox.exec({ command: 'python3 /workspace/solution.py' });
       return { text: r.text, exitCode: check.exitCode, output: check.stdout };
     },
     // Score: prefer candidates whose script ran cleanly and printed FizzBuzz.

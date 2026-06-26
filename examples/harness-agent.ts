@@ -1,29 +1,24 @@
 // A coding-agent "harness" backed by a durable Heyo sandbox.
 //
 // Heyo's flagship use case is running coding agents in disposable/durable VMs.
-// This wires the AI SDK's Experimental_Agent (a tool-loop agent) to a heyo
-// sandbox via createHeyoTools, with a persistent slug so the same workspace is
-// reused across runs.
+// This wires the AI SDK's Experimental_Agent (a tool-loop agent) to a Heyo
+// sandbox via createHeyoTools, reusing the same workspace across runs by name.
 //
 // Prerequisites:
-//   1. heyvm installed (CLI transport) and, for cloud, logged in (`heyvm login`).
+//   1. A Heyo API key:  export HEYO_API_KEY=heyo_...
 //   2. A model API key configured for the AI SDK.
-//   3. Build this package first: npm run build
+//   3. Build this package first:  npm run build
 import { Experimental_Agent as Agent, stepCountIs } from 'ai';
 // import { getOrCreateHeyoSandbox, createHeyoTools } from 'ai-sdk-heyo-computer';
 import { getOrCreateHeyoSandbox, createHeyoTools } from '../src/index.js';
 
 async function main() {
-  // Durable workspace: same slug ⇒ same sandbox across processes/machines.
+  // Durable workspace: same name ⇒ same sandbox reused across processes.
   const sandbox = await getOrCreateHeyoSandbox({
-    transport: 'cli',
-    slug: 'coding-agent-demo',
+    name: 'coding-agent-demo',
     image: 'ubuntu:24.04',
-    // Optionally pre-install a coding-agent CLI inside the VM:
-    // agent: 'claude',
-    // For a cloud workspace instead of local, add: cloud: true, region: 'US'.
     workingDirectory: '/workspace',
-    noTtl: true,
+    ttlSeconds: 0, // unlimited (if your plan allows)
   });
 
   const agent = new Agent({
