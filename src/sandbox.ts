@@ -121,8 +121,11 @@ export function createTransport(options: HeyoConnectionOptions = {}): HeyoTransp
     return new CliTransport({
       bin: options.bin,
       cloudUrl: options.cloudUrl,
+      authUrl: options.authUrl,
       dev: options.dev,
       token: options.cliToken,
+      apiKey: options.apiKey,
+      autoLogin: options.autoLogin,
       dryRun: options.dryRun,
     });
   }

@@ -8,14 +8,20 @@ import type { HeyoConnectionOptions } from './types.js';
  * the `volumes` option on {@link createHeyoSandbox}.
  */
 export interface HeyoVolumesOptions
-  extends Pick<HeyoConnectionOptions, 'bin' | 'cloudUrl' | 'dev' | 'cliToken' | 'dryRun'> {}
+  extends Pick<
+    HeyoConnectionOptions,
+    'bin' | 'cloudUrl' | 'authUrl' | 'dev' | 'cliToken' | 'apiKey' | 'autoLogin' | 'dryRun'
+  > {}
 
 function cli(options: HeyoVolumesOptions): CliTransport {
   return new CliTransport({
     bin: options.bin,
     cloudUrl: options.cloudUrl,
+    authUrl: options.authUrl,
     dev: options.dev,
     token: options.cliToken,
+    apiKey: options.apiKey,
+    autoLogin: options.autoLogin,
     dryRun: options.dryRun,
   });
 }

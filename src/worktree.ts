@@ -4,7 +4,18 @@ import type { HeyoConnectionOptions } from './types.js';
 
 export interface CreateWorktreeSandboxOptions
   extends WorktreeArgs,
-    Pick<HeyoConnectionOptions, 'bin' | 'cloudUrl' | 'dev' | 'cliToken' | 'dryRun' | 'shell'> {
+    Pick<
+      HeyoConnectionOptions,
+      | 'bin'
+      | 'cloudUrl'
+      | 'authUrl'
+      | 'dev'
+      | 'cliToken'
+      | 'apiKey'
+      | 'autoLogin'
+      | 'dryRun'
+      | 'shell'
+    > {
   /** Branch name (e.g. `feat/cool-feature`). */
   branch: string;
 }
@@ -21,8 +32,29 @@ export interface CreateWorktreeSandboxOptions
 export async function createHeyoWorktreeSandbox(
   options: CreateWorktreeSandboxOptions,
 ): Promise<HeyoSandbox> {
-  const { branch, bin, cloudUrl, dev, cliToken, dryRun, shell, ...wt } = options;
-  const transport = new CliTransport({ bin, cloudUrl, dev, token: cliToken, dryRun });
+  const {
+    branch,
+    bin,
+    cloudUrl,
+    authUrl,
+    dev,
+    cliToken,
+    apiKey,
+    autoLogin,
+    dryRun,
+    shell,
+    ...wt
+  } = options;
+  const transport = new CliTransport({
+    bin,
+    cloudUrl,
+    authUrl,
+    dev,
+    token: cliToken,
+    apiKey,
+    autoLogin,
+    dryRun,
+  });
   const info = await transport.worktree(branch, wt);
   return new HeyoSandbox(transport, info, { shell });
 }

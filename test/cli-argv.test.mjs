@@ -121,6 +121,19 @@ async function main() {
   const wtDeployCall = joined(wtDeploy.transport.calls.at(-1));
   check('wt deploy argv', wtDeployCall.includes('--deploy') && wtDeployCall.includes('--deploy-region EU') && wtDeployCall.includes('--deploy-port 8080') && !wtDeployCall.includes('--detach'), wtDeployCall);
 
+  // Login: apiKey establishes a cloud session via `heyvm login --api-key`
+  const authed = await createHeyoSandbox({
+    transport: 'cli',
+    dryRun: true,
+    cloudUrl: 'https://server.heyo.computer',
+    authUrl: 'https://auth.heyo.computer',
+    apiKey: 'heyo_api_secret',
+    name: 'authed',
+  });
+  await authed.transport.login();
+  const login = joined(authed.transport.calls.at(-1));
+  check('login argv', login.startsWith('login --api-key heyo_api_secret') && login.includes('--cloud-url https://server.heyo.computer') && login.includes('--auth-url https://auth.heyo.computer'), login);
+
   // Tools: env-aware description + expected tool names
   check('description is environment-aware', /Heyo \(heyvm\) microVM sandbox/.test(sandbox.description) && sandbox.description.includes('transport: cli'), sandbox.description);
   const tools = createHeyoTools(sandbox, { prefix: 'heyo' });

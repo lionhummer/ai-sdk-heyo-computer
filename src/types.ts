@@ -116,10 +116,24 @@ export interface HeyoConnectionOptions {
   bin?: string;
   /** Override the cloud server URL (`--cloud-url`). */
   cloudUrl?: string;
+  /** Override the auth server URL (`--auth-url`, used by `login`). */
+  authUrl?: string;
   /** Development mode (`--dev`). */
   dev?: boolean;
-  /** JWT token for cloud auth (`--token`). */
+  /**
+   * JWT token injected as `HEYO_ARCHIVE_TOKEN` for the deploy plane
+   * (create/archive/update). Cloud exec/status need {@link apiKey} instead.
+   */
   cliToken?: string;
+  /**
+   * Heyo dashboard API key. When set, the CLI transport establishes a cloud
+   * **session** via `heyvm login --api-key` (automatically before the first
+   * command, and again once on an auth failure). This authorizes the
+   * exec/status plane for cloud sandboxes.
+   */
+  apiKey?: string;
+  /** Disable the automatic `heyvm login` even when {@link apiKey} is set. */
+  autoLogin?: boolean;
   /** Record argv and skip spawning (for tests). */
   dryRun?: boolean;
 

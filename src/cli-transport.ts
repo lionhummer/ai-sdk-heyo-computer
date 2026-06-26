@@ -41,10 +41,25 @@ export interface CliTransportOptions {
   bin?: string;
   /** Override the cloud server URL (passed as `--cloud-url`). */
   cloudUrl?: string;
+  /** Override the auth server URL (passed as `--auth-url`, used by `login`). */
+  authUrl?: string;
   /** Development mode (`--dev`): use localhost auth/cloud URLs. */
   dev?: boolean;
-  /** JWT token for cloud auth (passed as `--token` on supported commands). */
+  /**
+   * JWT token injected as `HEYO_ARCHIVE_TOKEN` for the deploy plane
+   * (`create`/`archive`/`update`). NOTE: cloud `exec`/`get`/`list` ignore this
+   * and require a logged-in session — use {@link apiKey} for those.
+   */
   token?: string;
+  /**
+   * API key (from the Heyo dashboard) used to establish a cloud **session** via
+   * `heyvm login --api-key`. This is what authorizes the exec/status plane for
+   * cloud sandboxes. When set, the transport logs in automatically before the
+   * first command and re-logs-in once on an auth failure (session refresh).
+   */
+  apiKey?: string;
+  /** Disable the automatic `heyvm login` even when {@link apiKey} is set. */
+  autoLogin?: boolean;
   /**
    * When true, no process is spawned. Generated argv is recorded on `calls`
    * and canned responses are returned. Useful for tests.
@@ -115,15 +130,24 @@ export class CliTransport implements HeyoTransport {
 
   private readonly bin: string;
   private readonly cloudUrl?: string;
+  private readonly authUrl?: string;
   private readonly dev: boolean;
   private readonly token?: string;
+  private readonly apiKey?: string;
+  private readonly autoLogin: boolean;
   private readonly dryRun: boolean;
+
+  private loginDone = false;
+  private loginInFlight?: Promise<void>;
 
   constructor(options: CliTransportOptions = {}) {
     this.bin = options.bin ?? 'heyvm';
     this.cloudUrl = options.cloudUrl;
+    this.authUrl = options.authUrl;
     this.dev = options.dev ?? false;
     this.token = options.token;
+    this.apiKey = options.apiKey;
+    this.autoLogin = options.autoLogin ?? true;
     this.dryRun = options.dryRun ?? false;
   }
 
@@ -136,9 +160,9 @@ export class CliTransport implements HeyoTransport {
   }
 
   private spawn(argv: string[], abortSignal?: AbortSignal): Promise<SpawnResult> {
-    // Cloud subcommands other than `create`/`archive` don't accept `--token`;
-    // they authenticate via the HEYO_ARCHIVE_TOKEN env var. So when a token is
-    // configured, inject it for every command (not just create).
+    // `token` authorizes the deploy plane only (create/archive/update) via the
+    // HEYO_ARCHIVE_TOKEN env var. The exec/status plane (exec/get/list) needs a
+    // logged-in session instead — see `apiKey`/`login()`.
     const env = this.token
       ? { ...process.env, HEYO_ARCHIVE_TOKEN: this.token }
       : process.env;
@@ -153,6 +177,75 @@ export class CliTransport implements HeyoTransport {
     });
   }
 
+  private static isAuthFailure(result: SpawnResult): boolean {
+    const text = `${result.stderr}\n${result.stdout}`.toLowerCase();
+    return (
+      result.code !== 0 &&
+      (text.includes('not authenticated') ||
+        text.includes('log in') ||
+        text.includes('unauthorized') ||
+        text.includes('authentication required'))
+    );
+  }
+
+  /**
+   * Establish a cloud session with `heyvm login --api-key`. Deduplicated so
+   * concurrent commands only trigger one login; pass `force` to refresh an
+   * expired session.
+   */
+  async login(force = false): Promise<void> {
+    if (!this.apiKey) {
+      throw new Error('CliTransport.login requires an apiKey.');
+    }
+    if (this.loginDone && !force) return;
+    if (force) {
+      this.loginDone = false;
+      this.loginInFlight = undefined;
+    }
+    if (!this.loginInFlight) {
+      const argv = ['login', '--api-key', this.apiKey, ...this.globalFlags()];
+      if (this.authUrl) argv.push('--auth-url', this.authUrl);
+      if (this.dryRun) {
+        this.calls.push(argv);
+        this.loginDone = true;
+        return;
+      }
+      this.loginInFlight = this.spawn(argv)
+        .then((result) => {
+          if (result.code !== 0) throw new HeyoCliError(this.bin, argv, result);
+          this.loginDone = true;
+        })
+        .finally(() => {
+          this.loginInFlight = undefined;
+        });
+    }
+    await this.loginInFlight;
+  }
+
+  /** Lazily ensure a session exists before commands when an apiKey is set. */
+  private async ensureLogin(): Promise<void> {
+    if (this.apiKey && this.autoLogin && !this.loginDone) {
+      await this.login(false);
+    }
+  }
+
+  /**
+   * Spawn with session handling: log in first when an apiKey is configured, and
+   * if a command fails with an auth error, refresh the session once and retry.
+   */
+  private async runRaw(
+    argv: string[],
+    abortSignal?: AbortSignal,
+  ): Promise<SpawnResult> {
+    await this.ensureLogin();
+    let result = await this.spawn(argv, abortSignal);
+    if (this.apiKey && CliTransport.isAuthFailure(result)) {
+      await this.login(true);
+      result = await this.spawn(argv, abortSignal);
+    }
+    return result;
+  }
+
   /** Run a command expected to emit JSON on stdout; throws on failure. */
   private async runJson<T>(
     argv: string[],
@@ -162,7 +255,7 @@ export class CliTransport implements HeyoTransport {
       this.calls.push(argv);
       return this.cannedResponse<T>(argv);
     }
-    const result = await this.spawn(argv, abortSignal);
+    const result = await this.runRaw(argv, abortSignal);
     const parsed = tryParseJson(result.stdout);
     if (parsed === undefined || result.code !== 0) {
       throw new HeyoCliError(this.bin, argv, result);
@@ -179,7 +272,7 @@ export class CliTransport implements HeyoTransport {
       this.calls.push(argv);
       return { code: 0, stdout: '', stderr: '' };
     }
-    const result = await this.spawn(argv, abortSignal);
+    const result = await this.runRaw(argv, abortSignal);
     if (result.code !== 0) throw new HeyoCliError(this.bin, argv, result);
     return result;
   }
@@ -234,7 +327,7 @@ export class CliTransport implements HeyoTransport {
 
     // `heyvm exec` propagates the inner command's exit code as its own, so a
     // non-zero process exit is NOT a transport failure as long as we got JSON.
-    const result = await this.spawn(argv, params.abortSignal);
+    const result = await this.runRaw(argv, params.abortSignal);
     const parsed = tryParseJson(result.stdout) as
       | { exit_code?: number; stdout?: string; stderr?: string }
       | undefined;
@@ -396,7 +489,7 @@ export class CliTransport implements HeyoTransport {
       return { exitCode: 0, stdout: '', stderr: '' };
     }
     // run-host propagates the inner command's exit code as its own.
-    const result = await this.spawn(argv, opts.abortSignal);
+    const result = await this.runRaw(argv, opts.abortSignal);
     return { exitCode: result.code ?? 0, stdout: result.stdout, stderr: result.stderr };
   }
 
