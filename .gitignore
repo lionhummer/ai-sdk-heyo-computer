@@ -1,0 +1,9 @@
+node_modules
+dist
+*.log
+.DS_Store
+.env
+.env.*
+
+# Local scratch app for manually exercising the published package
+test-app/

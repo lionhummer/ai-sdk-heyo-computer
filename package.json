@@ -1,0 +1,64 @@
+{
+  "name": "ai-sdk-heyo-computer",
+  "version": "0.1.0",
+  "description": "Heyo (heyvm) sandbox provider for the Vercel AI SDK. Run agent-generated commands and code in isolated Heyo microVMs.",
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "vercel",
+    "sandbox",
+    "heyo",
+    "heyvm",
+    "microvm",
+    "agent",
+    "tools"
+  ],
+  "license": "MIT",
+  "author": "lionhummer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lionhummer/ai-sdk-heyo-computer.git"
+  },
+  "homepage": "https://github.com/lionhummer/ai-sdk-heyo-computer#readme",
+  "bugs": {
+    "url": "https://github.com/lionhummer/ai-sdk-heyo-computer/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node test/rest-mock.test.mjs && node test/cli-argv.test.mjs",
+    "test:cli-live": "npm run build && node test/cli-live.test.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "ai": ">=7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "ai": "^7.0.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3",
+    "zod": "^4.4.3"
+  }
+}
