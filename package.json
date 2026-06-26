@@ -1,7 +1,7 @@
 {
   "name": "ai-sdk-heyo-computer",
-  "version": "0.2.1",
-  "description": "Heyo (heyvm) sandbox provider for the Vercel AI SDK. Run agent-generated commands and code in isolated Heyo microVMs.",
+  "version": "0.3.0",
+  "description": "Heyo sandbox provider for the Vercel AI SDK. Run agent-generated commands and code in isolated Heyo microVMs.",
   "keywords": [
     "ai",
     "ai-sdk",
@@ -24,14 +24,12 @@
     "url": "https://github.com/lionhummer/ai-sdk-heyo-computer/issues"
   },
   "type": "module",
-  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -44,12 +42,14 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node test/rest-mock.test.mjs && node test/cli-argv.test.mjs",
-    "test:cli-live": "npm run build && node test/cli-live.test.mjs",
+    "test": "npm run build && node test/sandbox.test.mjs",
     "prepublishOnly": "npm run build"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@heyocomputer/sdk": "^0.1.4"
   },
   "peerDependencies": {
     "ai": ">=7.0.0"
