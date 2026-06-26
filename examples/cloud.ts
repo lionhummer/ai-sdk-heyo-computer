@@ -1,8 +1,9 @@
 // Prerequisites:
-//   1. heyvm binary installed and logged in to your Heyo cloud account
-//      (`heyvm login`).
-//   2. A model API key configured for the AI SDK.
-//   3. Build this package first: npm run build
+//   1. heyvm binary installed and a Heyo cloud account.
+//   2. A Heyo dashboard API key in HEYO_API_KEY — the CLI transport uses it to
+//      `heyvm login --api-key` for you (no manual `heyvm login` needed).
+//   3. A model API key configured for the AI SDK.
+//   4. Build this package first: npm run build
 //
 // Cloud sandboxes require the CLI transport (`transport: 'cli'`). The CLI also
 // gives you true stdout/stderr separation.
@@ -13,6 +14,7 @@ import { createHeyoSandbox, createHeyoTools } from '../src/index.js';
 async function main() {
   await using sandbox = await createHeyoSandbox({
     transport: 'cli',
+    apiKey: process.env.HEYO_API_KEY,
     cloud: true,
     region: 'US',
     sizeClass: 'small',

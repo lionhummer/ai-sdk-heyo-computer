@@ -134,6 +134,12 @@ async function main() {
   const login = joined(authed.transport.calls.at(-1));
   check('login argv', login.startsWith('login --api-key heyo_api_secret') && login.includes('--cloud-url https://server.heyo.computer') && login.includes('--auth-url https://auth.heyo.computer'), login);
 
+  // Self-hosted cloud: --cloud-url AND --auth-url must reach every subcommand,
+  // not just `login` (e.g. pointing the CLI at your own Heyo stack).
+  await authed.exec({ command: 'true' });
+  const authedExec = joined(authed.transport.calls.at(-1));
+  check('self-host exec carries cloud+auth url', authedExec.startsWith('exec') && authedExec.includes('--cloud-url https://server.heyo.computer') && authedExec.includes('--auth-url https://auth.heyo.computer'), authedExec);
+
   // Tools: env-aware description + expected tool names
   check('description is environment-aware', /Heyo \(heyvm\) microVM sandbox/.test(sandbox.description) && sandbox.description.includes('transport: cli'), sandbox.description);
   const tools = createHeyoTools(sandbox, { prefix: 'heyo' });

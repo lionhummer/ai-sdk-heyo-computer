@@ -151,10 +151,15 @@ export class CliTransport implements HeyoTransport {
     this.dryRun = options.dryRun ?? false;
   }
 
-  /** Flags supported by (essentially) every subcommand. */
+  /**
+   * Flags supported by (essentially) every subcommand. `--cloud-url`/`--auth-url`
+   * let the CLI target a **self-hosted** Heyo cloud stack (the same stack
+   * `--dev` points at `localhost:4445`/`:3001`), not just `heyo.computer`.
+   */
   private globalFlags(): string[] {
     const flags: string[] = [];
     if (this.cloudUrl) flags.push('--cloud-url', this.cloudUrl);
+    if (this.authUrl) flags.push('--auth-url', this.authUrl);
     if (this.dev) flags.push('--dev');
     return flags;
   }
@@ -204,7 +209,6 @@ export class CliTransport implements HeyoTransport {
     }
     if (!this.loginInFlight) {
       const argv = ['login', '--api-key', this.apiKey, ...this.globalFlags()];
-      if (this.authUrl) argv.push('--auth-url', this.authUrl);
       if (this.dryRun) {
         this.calls.push(argv);
         this.loginDone = true;
