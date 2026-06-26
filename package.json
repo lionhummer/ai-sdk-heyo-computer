@@ -1,6 +1,6 @@
 {
   "name": "ai-sdk-heyo-computer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Heyo (heyvm) sandbox provider for the Vercel AI SDK. Run agent-generated commands and code in isolated Heyo microVMs.",
   "keywords": [
     "ai",

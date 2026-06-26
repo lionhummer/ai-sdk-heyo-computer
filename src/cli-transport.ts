@@ -136,8 +136,14 @@ export class CliTransport implements HeyoTransport {
   }
 
   private spawn(argv: string[], abortSignal?: AbortSignal): Promise<SpawnResult> {
+    // Cloud subcommands other than `create`/`archive` don't accept `--token`;
+    // they authenticate via the HEYO_ARCHIVE_TOKEN env var. So when a token is
+    // configured, inject it for every command (not just create).
+    const env = this.token
+      ? { ...process.env, HEYO_ARCHIVE_TOKEN: this.token }
+      : process.env;
     return new Promise((resolve, reject) => {
-      const child = spawn(this.bin, argv, { signal: abortSignal });
+      const child = spawn(this.bin, argv, { signal: abortSignal, env });
       let stdout = '';
       let stderr = '';
       child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
