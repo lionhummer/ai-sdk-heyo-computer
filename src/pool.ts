@@ -30,11 +30,7 @@ export class HeyoSandboxPool {
     const baseName = base.name ?? `pool-${Math.random().toString(36).slice(2, 8)}`;
     const sandboxes = await Promise.all(
       Array.from({ length: size }, (_, i) =>
-        createHeyoSandbox({
-          ...base,
-          name: `${baseName}-${i}`,
-          slug: base.slug ? `${base.slug}-${i}` : undefined,
-        }),
+        createHeyoSandbox({ ...base, name: `${baseName}-${i}` }),
       ),
     );
     return new HeyoSandboxPool(sandboxes);

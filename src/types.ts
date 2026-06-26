@@ -1,8 +1,14 @@
+import type {
+  SandboxDriver,
+  SandboxRegion,
+  SandboxSize,
+} from '@heyocomputer/sdk';
+
 /**
- * The sandbox contract required by the Vercel AI SDK (`ai@7`). This mirrors
- * `Experimental_SandboxSession` from `@ai-sdk/provider-utils` structurally, so
- * a {@link HeyoSandbox} can be passed to the SDK's `experimental_sandbox`
- * option without a hard build-time dependency on `ai`.
+ * The sandbox contract consumed by the Vercel AI SDK (`ai@7`). Structurally
+ * matches `Experimental_SandboxSession`, so a {@link HeyoSandbox} can be passed
+ * to the SDK's `experimental_sandbox` option without a build-time dependency on
+ * `ai`.
  *
  * @see https://ai-sdk.dev/v7/docs/reference/ai-sdk-core/sandbox
  */
@@ -35,45 +41,42 @@ export interface SandboxSession {
 }
 
 export interface SandboxProcessOptions {
-  /** The command to execute, as a single shell string. */
+  /** The command to execute, as a single shell string (run via `sh -c`). */
   command: string;
-  /** Optional working directory to execute the command in. */
+  /** Working directory to run the command in. */
   workingDirectory?: string;
-  /**
-   * Optional environment variables for this command. Merged with the
-   * sandbox's default environment, with these values taking precedence.
-   */
+  /** Environment variables, merged on top of the sandbox's default env. */
   env?: Record<string, string>;
-  /** Optional abort signal used to cancel the in-flight request. */
+  /** Abort signal to cancel the in-flight request. */
   abortSignal?: AbortSignal;
 }
 
 export interface ReadFileOptions {
   path: string;
+  /** Mount the path is rooted on. Defaults to the sandbox mount (`/workspace`). */
+  mountPath?: string;
   abortSignal?: AbortSignal;
 }
 
 export interface WriteFileOptions<CONTENT> {
   path: string;
   content: CONTENT;
+  /** Mount the path is rooted on. Defaults to the sandbox mount (`/workspace`). */
+  mountPath?: string;
   abortSignal?: AbortSignal;
 }
 
 export interface RunResult {
   exitCode: number;
   stdout: string;
-  /**
-   * Heyo's HTTP `execute` endpoint merges stderr into a single `output`
-   * stream, so `stderr` is always an empty string for runs performed over the
-   * REST API. The combined output is available on `stdout`.
-   */
   stderr: string;
 }
 
 /**
- * Handle to a process started via {@link SandboxSession.spawn}. Because heyvm's
- * REST `execute` endpoint is blocking, the command has already run to
- * completion by the time this handle is returned (see {@link HeyoSandbox.spawn}).
+ * Handle to a process started via {@link SandboxSession.spawn}. The exec
+ * endpoint is blocking, so the command has already run to completion by the
+ * time this handle is returned: the streams replay captured output, `wait()`
+ * resolves immediately, and `kill()` is a no-op.
  */
 export interface SandboxProcess {
   readonly pid?: number;
@@ -83,142 +86,78 @@ export interface SandboxProcess {
   kill(): PromiseLike<void>;
 }
 
-export interface SandboxMount {
-  host_path: string;
-  sandbox_path: string;
-  read_only?: boolean;
-}
-
-/**
- * Selects and configures the transport used to talk to heyvm.
- *
- * - `rest` (default): a local `heyvm --api` HTTP server. Remote-capable, but
- *   manages local sandboxes only and merges stderr into stdout.
- * - `cli`: shells out to the `heyvm` binary. Covers local AND cloud sandboxes
- *   plus the full subcommand surface, with true stdout/stderr separation.
- */
+/** Connection settings shared by every factory. */
 export interface HeyoConnectionOptions {
-  /** Which transport to use. Defaults to `rest`. */
-  transport?: 'rest' | 'cli';
-
-  // --- REST transport options ---
-  /** Base URL of the heyvm API server. Defaults to `http://localhost:3000`. */
-  apiUrl?: string;
-  /** Bearer token for the REST API (when the server has `JWT_SECRET` set). */
-  token?: string;
-  /** Extra headers for the REST API. */
-  headers?: Record<string, string>;
-  /** Custom fetch implementation for the REST API. Defaults to global `fetch`. */
-  fetch?: typeof fetch;
-
-  // --- CLI transport options ---
-  /** Path or name of the heyvm binary. Defaults to `heyvm`. */
-  bin?: string;
-  /** Override the cloud server URL (`--cloud-url`). */
-  cloudUrl?: string;
-  /** Override the auth server URL (`--auth-url`, used by `login`). */
-  authUrl?: string;
-  /** Development mode (`--dev`). */
-  dev?: boolean;
   /**
-   * JWT token injected as `HEYO_ARCHIVE_TOKEN` for the deploy plane
-   * (create/archive/update). Cloud exec/status need {@link apiKey} instead.
-   */
-  cliToken?: string;
-  /**
-   * Heyo dashboard API key. When set, the CLI transport establishes a cloud
-   * **session** via `heyvm login --api-key` (automatically before the first
-   * command, and again once on an auth failure). This authorizes the
-   * exec/status plane for cloud sandboxes.
+   * Heyo API key, sent as `Authorization: Bearer <key>`. Falls back to
+   * `process.env.HEYO_API_KEY`. Omit it to talk to an unauthenticated local
+   * `heyvm` daemon.
    */
   apiKey?: string;
-  /** Disable the automatic `heyvm login` even when {@link apiKey} is set. */
-  autoLogin?: boolean;
-  /** Record argv and skip spawning (for tests). */
-  dryRun?: boolean;
-
   /**
-   * Shell used to interpret single-string commands. Defaults to `bash`. The
-   * command is run as `<shell> -lc "<command>"`.
+   * API base URL. Defaults to the Heyo cloud (`https://server.heyo.computer`).
+   * Point it at a self-hosted `heyvm --api` server to run anywhere.
    */
-  shell?: string;
+  baseUrl?: string;
+  /** Per-request timeout in milliseconds. Default: 60000. */
+  timeoutMs?: number;
+  /** Custom `fetch` implementation. Defaults to the global `fetch`. */
+  fetch?: typeof fetch;
+  /** Custom `WebSocket` constructor for {@link HeyoSandbox.shell} on Node < 22. */
+  webSocket?: typeof WebSocket;
 }
 
 /** Options for creating a new sandbox. */
 export interface CreateSandboxOptions extends HeyoConnectionOptions {
-  /** Human-readable name (also used to derive the slug). */
+  /** Human-readable name. The server generates one when omitted. */
   name?: string;
-  /** URL-safe slug (defaults to slugified name). */
-  slug?: string;
-  /** Base image, e.g. `ubuntu:24.04`. */
+  /** Base image, e.g. `ubuntu:24.04`, a public image name, or a `pi-…` id. */
   image?: string;
-  /** Sandbox flavor. Defaults to `shell`. */
-  sandboxType?: 'shell' | 'python' | 'node';
-  /** Backend to run on, e.g. `msb`, `apple_container`, `bubblewrap`. */
-  backendType?: string;
-  /** Auto-destroy the sandbox after this many seconds. */
-  ttlSeconds?: number;
-  /** Never expire (`--no-ttl`). */
-  noTtl?: boolean;
-  /** Long-running start command to keep the sandbox alive. */
-  startCommand?: string;
-  /** Default working directory for the sandbox. */
-  workingDirectory?: string;
-  /** Ports to expose locally. */
+  /** Region. Default: `US`. */
+  region?: SandboxRegion;
+  /** VM driver. Inferred from the image when omitted. */
+  driver?: SandboxDriver;
+  /** Resource size class. Default: `small`. */
+  sizeClass?: SandboxSize;
+  /** Ports to expose publicly via the proxy. */
   openPorts?: number[];
-  /** Default environment variables for the sandbox. */
+  /** Command run on startup. */
+  startCommand?: string;
+  /** Time-to-live in seconds. `0` means unlimited (if the plan allows). */
+  ttlSeconds?: number;
+  /** Disk size in GB (capped server-side at 250). */
+  diskSizeGb?: number;
+  /** Working directory for `startCommand` and commands. */
+  workingDirectory?: string;
+  /** Default environment variables. */
   envVars?: Record<string, string>;
-  /** Shell commands to run once after the filesystem is mounted. */
+  /** Commands run once after the workspace is mounted. */
   setupHooks?: string[];
-  /** Host directories to mount into the sandbox. */
-  mounts?: SandboxMount[];
-
-  // --- CLI / cloud only ---
-  /** Named volumes to attach (CLI transport only). */
-  volumes?: string[];
-  /** Memory allocation, e.g. `2g` (CLI transport only). */
-  memory?: string;
-  /** Pre-install an agent CLI at creation time (CLI transport only). */
-  agent?: 'claude' | 'codex';
-  /** Require a networked backend (CLI transport only). */
-  needsNetwork?: boolean;
-  /** Host dir mounted as overlay lower; enables `fork` (CLI, bubblewrap). */
-  projectSnapshot?: string;
-  /** Create directly in the Heyo cloud (CLI transport only). */
-  cloud?: boolean;
-  /** Cloud region for `cloud: true`. */
-  region?: 'US' | 'EU';
-  /** Cloud size class for `cloud: true`. */
-  sizeClass?: 'micro' | 'mini' | 'small' | 'medium' | 'large';
-  /** Public cloud ports to expose (with `cloud: true`). */
-  cloudPorts?: number[];
-  /** Health check path the cloud-create waits for. */
-  healthPath?: string;
-  /** Make cloud-bound ports private. */
-  privatePorts?: boolean;
+  /** Archive id (`ar-…`) to seed the workspace (libvirt deploys). */
+  archiveId?: string;
+  /** Pin the sandbox to a specific user-owned daemon (heyvmd) id. */
+  daemonId?: string;
+  /**
+   * Max time to wait for the sandbox to leave `provisioning`. Default 5
+   * minutes. Pass `0` to return immediately while it's still provisioning.
+   */
+  waitForReadyMs?: number;
+  /** Mount that file operations are rooted on. Default: `/workspace`. */
+  mountPath?: string;
 }
 
-/** Raw shape returned by `POST /sandboxes`. */
-export interface SandboxInfo {
-  id: string;
-  name?: string;
-  slug?: string;
-  status?: string;
-  image?: string;
-  [key: string]: unknown;
-}
-
-/** Raw shape returned by `POST /sandboxes/:id/execute`. */
-export interface ExecuteResponse {
-  output?: string;
-  exit_code?: number;
-  [key: string]: unknown;
-}
-
-/** Raw shape returned by `POST /sandboxes/:id/proxy`. */
-export interface ProxyEndpoint {
-  subdomain: string;
-  hostname: string;
-  sandbox_id: string;
-  port: number;
-}
+export type {
+  BoundUrl,
+  PublicImage,
+  SandboxDriver,
+  SandboxInfo,
+  SandboxLogEntry,
+  SandboxLogs,
+  SandboxLogsOptions,
+  SandboxRegion,
+  SandboxSize,
+  SandboxStatus,
+  ShellOptions,
+  ShellSession,
+  SnapshotImageInfo,
+} from '@heyocomputer/sdk';
